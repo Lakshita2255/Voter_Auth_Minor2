@@ -127,7 +127,7 @@ const VoterTable = ({ voters, isLoading, onRefresh, onDeleteVoter }) => {
                                         {/* Photo Status */}
                                         <td className="px-6 py-4">
                                             <div className="flex items-center">
-                                                {voter.image_id ? (
+                                                {voter.image_id !== null && voter.image_id !== undefined ? (
                                                     <div className="flex items-center gap-2 text-green-600">
                                                         <Image className="w-4 h-4" />
                                                         <span className="text-xs font-medium">Uploaded</span>

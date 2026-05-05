@@ -44,7 +44,7 @@ const Admin = () => {
     const handleAddVoter = async (voterData) => {
         try {
             // Use the new dedicated endpoint for adding voters with images
-            const response = await axios.post('http://localhost:5000/api/admin/add-voter', voterData);
+            // const response = await axios.post('http://localhost:5000/api/admin/add-voter', voterData);
             
             setShowAddVoterForm(false);
             

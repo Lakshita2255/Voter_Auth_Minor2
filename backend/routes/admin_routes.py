@@ -11,101 +11,159 @@ from utils.image_validator import VoterImageValidator
 admin_bp = Blueprint('admin_bp', __name__)   
 
 @admin_bp.route('/voters', methods=['GET', 'POST'])
+# def manage_voters():
+#     mongo = current_app.mongo
+#     if request.method == 'POST':
+#        data = request.form.to_dict()
+#        errors = []
+
+#         # Extract image data if provided
+#     image_data = data.pop('image', None)
+
+#         # Validation
+#     if not validate_voter_id(data.get('voter_id', '')):
+#             errors.append("Invalid Voter ID format (must be ABC1234567).")
+#     if not validate_aadhaar(data.get('aadhar_number', '')):
+#             errors.append("Invalid Aadhaar number (must be 12 digits).")
+#     if not validate_indian_phone(data.get('phone_number', '')):
+#             errors.append("Invalid Indian mobile number (must be 10 digits starting with 6-9).")
+        
+#         # Check for address
+#     if not data.get('address'):
+#             errors.append("Address is a required field.")
+
+#     if errors:
+#             return jsonify({"error": "Validation failed", "details": errors}), 400        
+
+#         # Duplicate Check
+#     existing = mongo.db.voters.find_one({
+#             "$or": [
+#                 {"voter_id": data['voter_id'].upper()},
+#                 {"aadhar_number": data['aadhar_number']},
+#                 {"phone_number": data['phone_number']}
+#             ]
+#         })
+#     if existing:
+#             return jsonify({"error": "A voter with this Voter ID, Aadhaar, or Phone Number already exists."}), 409
+
+#         # Image validation and processing
+#     image_id = None
+#     if image_data:
+#             try:
+#                 # Validate image
+#                 validator = VoterImageValidator()
+#                 validation_result = validator.validate_image(image_data)
+                
+#                 if not validation_result["valid"]:
+#                     image_errors = validation_result.get("errors", [validation_result.get("error")])
+#                     return jsonify({
+#                         "error": "Image validation failed", 
+#                         "details": image_errors
+#                     }), 400
+                
+#                 # Process and store image
+#                 if image_data.startswith('data:image'):
+#                     image_data = image_data.split(',')[1]
+                
+#                 image_bytes = base64.b64decode(image_data)
+                
+#                 # Store in GridFS
+#                 fs = gridfs.GridFS(mongo.db)
+#                 image_id = fs.put(
+#                     image_bytes,
+#                     filename=f"voter_photo_{data['voter_id'].upper()}",
+#                     content_type="image/jpeg",
+#                     voter_id=data['voter_id'].upper(),
+#                     upload_date=datetime.utcnow()
+#                 )
+                
+#             except Exception as e:
+#                 return jsonify({
+#                     "error": "Image processing failed", 
+#                     "details": [str(e)]
+#                 }), 400
+
+#         # Create New Voter 
+#     new_voter_data = {
+#             "voter_id": data['voter_id'].upper(),
+#             "aadhar_number": data['aadhar_number'],
+#             "phone_number": data['phone_number'],
+#             "full_name": data['full_name'],
+#             "date_of_birth": data['date_of_birth'],
+#             "constituency": data['constituency'],
+#             "polling_station": data['polling_station'],
+#             "address": data['address'], 
+#             "age": calculate_age(data['date_of_birth']), 
+#             "created_at": datetime.utcnow(),
+#             "has_voted": False,
+#             "image_id": str(image_id) if image_id else None  # Store image reference
+#         }
+        
+#     result = mongo.db.voters.insert_one(new_voter_data)     
+#     return jsonify({
+#             "status": "voter_added", 
+#             "voter_id": str(result.inserted_id),
+#             "image_uploaded": image_id is not None
+#         }), 201
+
+@admin_bp.route('/voters', methods=['GET', 'POST'])
 def manage_voters():
     mongo = current_app.mongo
-    if request.method == 'POST':
-        data = request.json
-        errors = []
 
-        # Extract image data if provided
-        image_data = data.pop('image', None)
+    # -------- GET: Fetch all voters --------
+    if request.method == 'GET':
+        voters = list(mongo.db.voters.find().sort("created_at", -1))
 
-        # Validation
-        if not validate_voter_id(data.get('voter_id', '')):
-            errors.append("Invalid Voter ID format (must be ABC1234567).")
-        if not validate_aadhaar(data.get('aadhar_number', '')):
-            errors.append("Invalid Aadhaar number (must be 12 digits).")
-        if not validate_indian_phone(data.get('phone_number', '')):
-            errors.append("Invalid Indian mobile number (must be 10 digits starting with 6-9).")
-        
-        # Check for address
-        if not data.get('address'):
-            errors.append("Address is a required field.")
+        for voter in voters:
+            voter["_id"] = str(voter["_id"])
 
-        if errors:
-            return jsonify({"error": "Validation failed", "details": errors}), 400        
+        return jsonify(voters)
 
-        # Duplicate Check
-        existing = mongo.db.voters.find_one({
-            "$or": [
-                {"voter_id": data['voter_id'].upper()},
-                {"aadhar_number": data['aadhar_number']},
-                {"phone_number": data['phone_number']}
-            ]
-        })
-        if existing:
-            return jsonify({"error": "A voter with this Voter ID, Aadhaar, or Phone Number already exists."}), 409
+    # -------- POST: Add voter --------
+    data = request.json
+    errors = []
 
-        # Image validation and processing
-        image_id = None
-        if image_data:
-            try:
-                # Validate image
-                validator = VoterImageValidator()
-                validation_result = validator.validate_image(image_data)
-                
-                if not validation_result["valid"]:
-                    image_errors = validation_result.get("errors", [validation_result.get("error")])
-                    return jsonify({
-                        "error": "Image validation failed", 
-                        "details": image_errors
-                    }), 400
-                
-                # Process and store image
-                if image_data.startswith('data:image'):
-                    image_data = image_data.split(',')[1]
-                
-                image_bytes = base64.b64decode(image_data)
-                
-                # Store in GridFS
-                fs = gridfs.GridFS(mongo.db)
-                image_id = fs.put(
-                    image_bytes,
-                    filename=f"voter_photo_{data['voter_id'].upper()}",
-                    content_type="image/jpeg",
-                    voter_id=data['voter_id'].upper(),
-                    upload_date=datetime.utcnow()
-                )
-                
-            except Exception as e:
-                return jsonify({
-                    "error": "Image processing failed", 
-                    "details": [str(e)]
-                }), 400
+    image_data = data.pop('image', None)
+    print("IMAGE RECEIVED:", image_data is not None)
 
-        # Create New Voter 
-        new_voter_data = {
-            "voter_id": data['voter_id'].upper(),
-            "aadhar_number": data['aadhar_number'],
-            "phone_number": data['phone_number'],
-            "full_name": data['full_name'],
-            "date_of_birth": data['date_of_birth'],
-            "constituency": data['constituency'],
-            "polling_station": data['polling_station'],
-            "address": data['address'], 
-            "age": calculate_age(data['date_of_birth']), 
-            "created_at": datetime.utcnow(),
-            "has_voted": False,
-            "image_id": str(image_id) if image_id else None  # Store image reference
-        }
-        
-        result = mongo.db.voters.insert_one(new_voter_data)     
-        return jsonify({
-            "status": "voter_added", 
-            "voter_id": str(result.inserted_id),
-            "image_uploaded": image_id is not None
-        }), 201
+    if not validate_voter_id(data.get('voter_id', '')):
+        errors.append("Invalid Voter ID format (must be ABC1234567).")
 
+    if not validate_aadhaar(data.get('aadhar_number', '')):
+        errors.append("Invalid Aadhaar number.")
+
+    if not validate_indian_phone(data.get('phone_number', '')):
+        errors.append("Invalid Indian mobile number.")
+
+    if not data.get('address'):
+        errors.append("Address is required.")
+
+    if errors:
+        return jsonify({"error": "Validation failed", "details": errors}), 400
+
+    # Duplicate check
+    existing = mongo.db.voters.find_one({
+        "$or": [
+            {"voter_id": data['voter_id'].upper()},
+            {"aadhar_number": data['aadhar_number']},
+            {"phone_number": data['phone_number']}
+        ]
+    })
+
+    if existing:
+        return jsonify({"error": "Voter already exists"}), 409
+
+    data['voter_id'] = data['voter_id'].upper()
+    data['age'] = calculate_age(data['date_of_birth'])
+    data['created_at'] = datetime.utcnow()
+    data['has_voted'] = False
+
+    result = mongo.db.voters.insert_one(data)
+
+    return jsonify({
+        "status": "voter_added",
+        "voter_id": str(result.inserted_id)
+    }), 201
     # GET request - Return all voters
     voters = list(mongo.db.voters.find().sort("created_at", -1))
     for voter in voters:
@@ -114,116 +172,134 @@ def manage_voters():
 
 @admin_bp.route('/add-voter', methods=['POST'])
 def add_voter():
-    """Dedicated endpoint for adding voters (alternative to the combined endpoint above)"""
+
     mongo = current_app.mongo
     data = request.json
     errors = []
 
-    # Extract image data if provided
-    image_data = data.pop('image', None)
-    
-    # Validate required fields
-    required_fields = ['voter_id', 'aadhar_number', 'phone_number', 'full_name', 'date_of_birth', 'address', 'constituency', 'polling_station']
+    image_data = data.pop("image", None)
+
+    required_fields = [
+        "voter_id",
+        "aadhar_number",
+        "phone_number",
+        "full_name",
+        "date_of_birth",
+        "address",
+        "constituency",
+        "polling_station"
+    ]
+
     for field in required_fields:
-        if field not in data or not data[field]:
+        if not data.get(field):
             errors.append(f"Missing required field: {field}")
-    
-    # Field-specific validation
-    if data.get('voter_id') and not validate_voter_id(data['voter_id']):
-        errors.append("Invalid Voter ID format (must be ABC1234567).")
-    if data.get('aadhar_number') and not validate_aadhaar(data['aadhar_number']):
-        errors.append("Invalid Aadhaar number (must be 12 digits).")
-    if data.get('phone_number') and not validate_indian_phone(data['phone_number']):
-        errors.append("Invalid Indian mobile number (must be 10 digits starting with 6-9).")
-    
+
+    if not validate_voter_id(data.get("voter_id", "")):
+        errors.append("Invalid Voter ID format")
+
+    if not validate_aadhaar(data.get("aadhar_number", "")):
+        errors.append("Invalid Aadhaar number")
+
+    if not validate_indian_phone(data.get("phone_number", "")):
+        errors.append("Invalid Indian phone number")
+
     if errors:
         return jsonify({"error": "Validation failed", "details": errors}), 400
-    
-    # Check for duplicates
+
+    # check duplicate
     existing = mongo.db.voters.find_one({
         "$or": [
-            {"voter_id": data['voter_id'].upper()},
-            {"aadhar_number": data['aadhar_number']},
-            {"phone_number": data['phone_number']}
+            {"voter_id": data["voter_id"].upper()},
+            {"aadhar_number": data["aadhar_number"]},
+            {"phone_number": data["phone_number"]}
         ]
     })
+
     if existing:
-        return jsonify({"error": "A voter with this Voter ID, Aadhaar, or Phone Number already exists."}), 409
-    
-    # Add default values
-    data['has_voted'] = False
-    data['voting_timestamp'] = None
-    data['otp_code'] = None
-    data['otp_expires_at'] = None
-    data['voter_id'] = data['voter_id'].upper()
-    data['age'] = calculate_age(data['date_of_birth'])
-    data['created_at'] = datetime.utcnow()
-    data['image_id'] = None  # Will be updated if image is provided
-    
-    # Insert voter first
+        return jsonify({"error": "Voter already exists"}), 409
+
+    data["voter_id"] = data["voter_id"].upper()
+    data["has_voted"] = False
+    data["created_at"] = datetime.utcnow()
+    data["age"] = calculate_age(data["date_of_birth"])
+    data["image_id"] = None
+
     result = mongo.db.voters.insert_one(data)
-    voter_id = str(result.inserted_id)
-    
-    # Handle image upload if provided
-    if image_data:
-        try:
-            validator = VoterImageValidator()
-            validation_result = validator.validate_image(image_data)
-            
-            if validation_result["valid"]:
-                # Store image
-                if image_data.startswith('data:image'):
-                    image_data = image_data.split(',')[1]
-                
-                image_bytes = base64.b64decode(image_data)
-                
-                fs = gridfs.GridFS(mongo.db)
-                image_id = fs.put(
-                    image_bytes,
-                    filename=f"voter_photo_{data['voter_id']}",
-                    content_type="image/jpeg",
-                    voter_id=data['voter_id'],
-                    upload_date=datetime.utcnow()
-                )
-                
-                # Update voter with image_id
-                mongo.db.voters.update_one(
-                    {"_id": result.inserted_id},
-                    {"$set": {"image_id": str(image_id)}}
-                )
-                
-                return jsonify({
-                    "success": True, 
-                    "voter_id": voter_id,
-                    "image_uploaded": True,
-                    "message": "Voter added successfully with photo"
-                })
-            else:
-                # Voter was added but image failed validation
-                image_errors = validation_result.get("errors", [validation_result.get("error")])
-                return jsonify({
-                    "success": True, 
-                    "voter_id": voter_id,
-                    "image_uploaded": False,
-                    "image_errors": image_errors,
-                    "message": "Voter added but photo validation failed"
-                })
-        except Exception as e:
-            # Voter was added but image processing failed
+
+    # handle image upload
+    # if image_data:
+
+    #     try:
+
+    #         validator = VoterImageValidator()
+    #         validation_result = validator.validate_image(image_data)
+
+    #         if validation_result["valid"]:
+
+    #             if image_data.startswith("data:image"):
+    #                 image_data = image_data.split(",")[1]
+
+    #             image_bytes = base64.b64decode(image_data)
+
+    #             fs = gridfs.GridFS(mongo.db)
+
+    #             image_id = fs.put(
+    #                 image_bytes,
+    #                 filename=f"voter_photo_{data['voter_id']}",
+    #                 content_type="image/jpeg",
+    #                 upload_date=datetime.utcnow()
+    #             )
+
+    #             mongo.db.voters.update_one(
+    #                 {"_id": result.inserted_id},
+    #                 {"$set": {"image_id": image_id}}
+    #             )
+
+    #             return jsonify({
+    #                 "success": True,
+    #                 "image_uploaded": True
+    #             })
+
+    #     except Exception as e:
+    #         return jsonify({"error": str(e)}), 500
+
+    # return jsonify({
+    #     "success": True,
+    #     "image_uploaded": False
+    # })
+    if image_data: 
+     try:
+        validator = VoterImageValidator()
+        validation_result = validator.validate_image(image_data)
+
+        if not validation_result["valid"]:
             return jsonify({
-                "success": True, 
-                "voter_id": voter_id,
-                "image_uploaded": False,
-                "image_error": str(e),
-                "message": "Voter added but photo upload failed"
-            })
-    
-    return jsonify({
-        "success": True, 
-        "voter_id": voter_id,
-        "image_uploaded": False,
-        "message": "Voter added successfully"
-    })
+                "error": "Image validation failed",
+                "details": validation_result.get("errors")
+            }), 400
+
+        # remove base64 header
+        if image_data.startswith("data:image"):
+            image_data = image_data.split(",")[1]
+
+        image_bytes = base64.b64decode(image_data)
+
+        fs = gridfs.GridFS(mongo.db)
+
+        image_id = fs.put(
+            image_bytes,
+            filename=f"voter_photo_{data['voter_id']}",
+            content_type="image/jpeg",
+            upload_date=datetime.utcnow()
+        )
+
+        mongo.db.voters.update_one(
+            {"_id": result.inserted_id},
+            {"$set": {"image_id": image_id}}
+        )
+
+     except Exception as e:
+        print("IMAGE ERROR:", e)
 
 @admin_bp.route('/voters/<voter_id>/image', methods=['GET'])
 def get_voter_image(voter_id):

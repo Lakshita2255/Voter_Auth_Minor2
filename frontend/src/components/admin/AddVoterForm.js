@@ -99,32 +99,67 @@ export default function AddVoterForm({ onSubmit, onCancel }) {
       age--;
     }
 
-    const data = new FormData();
+    // const data = new FormData();
 
-    Object.keys(formData).forEach(key => {
-      data.append(key, formData[key]);
-    });
+    // Object.keys(formData).forEach(key => {
+    //   data.append(key, formData[key]);
+    // });
 
-    data.append("age", age);
-    data.append("face_image", faceImage);
+    // data.append("age", age);
+    // data.append("face_image", faceImage);
+    const reader = new FileReader();
 
-    try {
-      setIsSubmitting(true);
+reader.onloadend = async () => {
+  const imageBase64 = reader.result;
 
-      await axios.post(
-        "http://127.0.0.1:5000/api/add-voter",
-        data,
-        { headers: { "Content-Type": "multipart/form-data" } }
-      );
+  const payload = {
+    ...formData,
+    age: age,
+    image: imageBase64
+  };
 
-      alert("Voter added successfully!");
-      if (onSubmit) onSubmit();
+  try {
+    setIsSubmitting(true);
 
-    } catch {
-      alert("Failed to add voter.");
-    }
+    await axios.post(
+      "http://127.0.0.1:5000/api/admin/add-voter",
+      payload
+    );
 
-    setIsSubmitting(false);
+    alert("Voter added successfully!");
+    if (onSubmit) onSubmit();
+
+  } catch (err) {
+    console.error(err);
+    alert(
+  err.response?.data?.details?.join(", ") ||
+  err.response?.data?.error ||
+  err.message
+);
+  }
+
+  setIsSubmitting(false);
+};
+
+reader.readAsDataURL(faceImage);
+
+//     try {
+//       setIsSubmitting(true);
+
+//       await axios.post(
+//        "http://127.0.0.1:5000/api/admin/add-voter",
+//         // data
+//       );
+
+//       alert("Voter added successfully!");
+//       if (onSubmit) onSubmit();
+
+//     } catch (err) {
+//   console.error("Add voter error:", err);
+//   alert(err.response?.data?.error || err.message || "Failed to add voter.");
+// }
+
+//     setIsSubmitting(false);
   };
 
   return (
